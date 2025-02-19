@@ -57,7 +57,6 @@ resource "aws_route_table" "public_routes" {
   }
 }
 
-# Public Route to Internet Gateway
 resource "aws_route" "public_internet_access" {
   count = var.vpc_count
 
@@ -65,8 +64,6 @@ resource "aws_route" "public_internet_access" {
   destination_cidr_block = "0.0.0.0/0"
   gateway_id             = aws_internet_gateway.igw[count.index].id
 }
-
-# Associate Public Subnets with Public Route Table
 resource "aws_route_table_association" "public_associations" {
   count          = var.vpc_count * 3
   subnet_id      = aws_subnet.public_subnets[count.index].id
