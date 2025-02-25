@@ -1,8 +1,8 @@
 
 data "aws_availability_zones" "available" {}
 
-  resource "aws_vpc" "vpc" {
-  count = var.vpc_count
+resource "aws_vpc" "vpc" {
+  count = varr.vpc_count
 
   cidr_block           = var.vpc_cidr_blocks[count.index]
   enable_dns_support   = true
