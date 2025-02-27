@@ -11,7 +11,7 @@ resource "aws_vpc" "vpc" {
     Name = "VPC-${count.index + 1}-${var.project_name}"
   }
 }
-#public_subnets
+#public_subnets 
 resource "aws_subnet" "public_subnets" {
   count                   = var.vpc_count * 3
   vpc_id                  = aws_vpc.vpc[floor(count.index / 3)].id
