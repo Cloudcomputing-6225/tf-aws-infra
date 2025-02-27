@@ -1,4 +1,3 @@
-
 data "aws_availability_zones" "available" {}
 
 resource "aws_vpc" "vpc" {
@@ -14,9 +13,9 @@ resource "aws_vpc" "vpc" {
 }
 
 resource "aws_subnet" "public_subnets" {
-  count                   = var.vpc_count * 3 # 3 subnets per VPC
+  count                   = var.vpc_count * 3
   vpc_id                  = aws_vpc.vpc[floor(count.index / 3)].id
-  cidr_block              = cidrsubnet(var.vpc_cidr_blocks[floor(count.index / 3)], 8, count.index % 3)
+  cidr_block              = var.public_subnet_cidrs[floor(count.index / 3)][count.index % 3]
   availability_zone       = element(data.aws_availability_zones.available.names, count.index % 3)
   map_public_ip_on_launch = true
 
@@ -25,11 +24,10 @@ resource "aws_subnet" "public_subnets" {
   }
 }
 
-# Create Private Subnets
 resource "aws_subnet" "private_subnets" {
-  count             = var.vpc_count * 3 # 3 subnets per VPC
+  count             = var.vpc_count * 3
   vpc_id            = aws_vpc.vpc[floor(count.index / 3)].id
-  cidr_block        = cidrsubnet(var.vpc_cidr_blocks[floor(count.index / 3)], 8, count.index % 3 + 3)
+  cidr_block        = var.private_subnet_cidrs[floor(count.index / 3)][count.index % 3]
   availability_zone = element(data.aws_availability_zones.available.names, count.index % 3)
 
   tags = {
@@ -37,7 +35,6 @@ resource "aws_subnet" "private_subnets" {
   }
 }
 
-# Internet Gateway for Each VPC
 resource "aws_internet_gateway" "igw" {
   count  = var.vpc_count
   vpc_id = aws_vpc.vpc[count.index].id
@@ -46,43 +43,70 @@ resource "aws_internet_gateway" "igw" {
     Name = "IGW-VPC-${count.index + 1}"
   }
 }
-
-# Public Route Table
-resource "aws_route_table" "public_routes" {
+resource "aws_security_group" "webapp_sg" {
   count  = var.vpc_count
   vpc_id = aws_vpc.vpc[count.index].id
+  name   = "${var.project_name}-security-group-${count.index + 1}"
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # Allowing public access to the app
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   tags = {
-    Name = "Public-Route-Table-VPC-${count.index + 1}"
+    Name = "${var.project_name}-sg-${count.index + 1}"
   }
 }
 
-resource "aws_route" "public_internet_access" {
-  count = var.vpc_count
+resource "aws_instance" "webapp" {
+  ami                    = var.ami_id
+  instance_type          = var.instance_type
+  key_name               = var.key_name
+  subnet_id              = aws_subnet.public_subnets[0].id
+  vpc_security_group_ids = [aws_security_group.webapp_sg[0].id]
 
-  route_table_id         = aws_route_table.public_routes[count.index].id
-  destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.igw[count.index].id
-}
-resource "aws_route_table_association" "public_associations" {
-  count          = var.vpc_count * 3
-  subnet_id      = aws_subnet.public_subnets[count.index].id
-  route_table_id = aws_route_table.public_routes[floor(count.index / 3)].id
-}
 
-# Private Route Table
-resource "aws_route_table" "private_routes" {
-  count  = var.vpc_count
-  vpc_id = aws_vpc.vpc[count.index].id
+  user_data = <<-EOF
+              #!/bin/bash
+              echo "Starting WebApp Setup"
+              sudo systemctl restart myapp
+              EOF
 
   tags = {
-    Name = "Private-Route-Table-VPC-${count.index + 1}"
+    Name = "${var.project_name}-ec2-instance"
   }
-}
 
-# Associate Private Subnets with Private Route Table
-resource "aws_route_table_association" "private_associations" {
-  count          = var.vpc_count * 3
-  subnet_id      = aws_subnet.private_subnets[count.index].id
-  route_table_id = aws_route_table.private_routes[floor(count.index / 3)].id
+  depends_on = [
+    aws_security_group.webapp_sg,
+    aws_internet_gateway.igw
+  ]
 }
