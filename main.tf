@@ -2,7 +2,9 @@ provider "aws" {
   region  = var.aws_region
   profile = "dev"
 }
+
 data "aws_availability_zones" "available" {}
+
 
 resource "aws_vpc" "vpc" {
   count = var.vpc_count
@@ -15,7 +17,8 @@ resource "aws_vpc" "vpc" {
     Name = "VPC-${count.index + 1}-${var.project_name}"
   }
 }
-#public_subnets 
+
+
 resource "aws_subnet" "public_subnets" {
   count                   = var.vpc_count * 3
   vpc_id                  = aws_vpc.vpc[floor(count.index / 3)].id
@@ -28,6 +31,7 @@ resource "aws_subnet" "public_subnets" {
   }
 }
 
+
 resource "aws_subnet" "private_subnets" {
   count             = var.vpc_count * 3
   vpc_id            = aws_vpc.vpc[floor(count.index / 3)].id
@@ -39,6 +43,7 @@ resource "aws_subnet" "private_subnets" {
   }
 }
 
+
 resource "aws_internet_gateway" "igw" {
   count  = var.vpc_count
   vpc_id = aws_vpc.vpc[count.index].id
@@ -47,6 +52,30 @@ resource "aws_internet_gateway" "igw" {
     Name = "IGW-VPC-${count.index + 1}"
   }
 }
+
+
+resource "aws_route_table" "public_rt" {
+  count  = var.vpc_count
+  vpc_id = aws_vpc.vpc[count.index].id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw[count.index].id
+  }
+
+  tags = {
+    Name = "Public-Route-Table-VPC-${count.index + 1}"
+  }
+}
+
+
+resource "aws_route_table_association" "public_subnet_assoc" {
+  count          = var.vpc_count * 3
+  subnet_id      = aws_subnet.public_subnets[count.index].id
+  route_table_id = aws_route_table.public_rt[floor(count.index / 3)].id
+}
+
+
 resource "aws_security_group" "webapp_sg" {
   count  = var.vpc_count
   vpc_id = aws_vpc.vpc[count.index].id
@@ -79,6 +108,7 @@ resource "aws_security_group" "webapp_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -92,12 +122,12 @@ resource "aws_security_group" "webapp_sg" {
 }
 
 resource "aws_instance" "webapp" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  key_name               = var.key_name
-  subnet_id              = aws_subnet.public_subnets[0].id
-  vpc_security_group_ids = [aws_security_group.webapp_sg[0].id]
-
+  ami                         = var.ami_id
+  instance_type               = var.instance_type
+  key_name                    = var.key_name
+  subnet_id                   = aws_subnet.public_subnets[0].id
+  vpc_security_group_ids      = [aws_security_group.webapp_sg[0].id]
+  associate_public_ip_address = true
 
   user_data = <<-EOF
               #!/bin/bash
@@ -111,6 +141,8 @@ resource "aws_instance" "webapp" {
 
   depends_on = [
     aws_security_group.webapp_sg,
-    aws_internet_gateway.igw
+    aws_internet_gateway.igw,
+    aws_route_table_association.public_subnet_assoc
   ]
 }
+
