@@ -1,8 +1,3 @@
-provider "aws" {
-  region  = var.aws_region
-  profile = "dev"
-}
-
 data "aws_availability_zones" "available" {}
 
 
