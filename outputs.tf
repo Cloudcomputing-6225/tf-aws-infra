@@ -8,14 +8,19 @@ output "instance_public_ip" {
   value       = aws_instance.webapp.public_ip
 }
 
-output "internet_gateway_ids" {
-  description = "List of Internet Gateway IDs"
-  value       = aws_internet_gateway.igw[*].id
+output "rds_endpoint" {
+  description = "RDS instance endpoint"
+  value       = aws_db_instance.rds_instance.endpoint
 }
 
-output "private_subnet_ids" {
-  description = "List of Private Subnet IDs"
-  value       = aws_subnet.private_subnets[*].id
+output "s3_bucket_name" {
+  description = "Name of the S3 bucket"
+  value       = aws_s3_bucket.ec2_s3_bucket.id
+}
+
+output "vpc_id" {
+  description = "VPC ID"
+  value       = aws_vpc.vpc.id
 }
 
 output "public_subnet_ids" {
@@ -23,12 +28,17 @@ output "public_subnet_ids" {
   value       = aws_subnet.public_subnets[*].id
 }
 
-output "security_group_ids" {
-  description = "List of Security Group IDs"
-  value       = aws_security_group.webapp_sg[*].id
+output "private_subnet_ids" {
+  description = "List of Private Subnet IDs"
+  value       = aws_subnet.private_subnets[*].id
 }
 
-output "vpc_ids" {
-  description = "List of VPC IDs"
-  value       = aws_vpc.vpc[*].id
+output "security_group_webapp" {
+  description = "Security Group ID for WebApp"
+  value       = aws_security_group.webapp_sg.id
+}
+
+output "security_group_rds" {
+  description = "Security Group ID for RDS"
+  value       = aws_security_group.rds_sg.id
 }
