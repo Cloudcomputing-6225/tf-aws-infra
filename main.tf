@@ -205,7 +205,7 @@ resource "aws_s3_bucket" "ec2_s3_bucket" {
   }
 }
 
-# ✅ Enable S3 Versioning
+# Enable S3 Versioning
 resource "aws_s3_bucket_versioning" "s3_versioning" {
   bucket = aws_s3_bucket.ec2_s3_bucket.id
 
@@ -214,7 +214,7 @@ resource "aws_s3_bucket_versioning" "s3_versioning" {
   }
 }
 
-# ✅ Server-Side Encryption (AES256)
+# Server-Side Encryption (AES256)
 resource "aws_s3_bucket_server_side_encryption_configuration" "s3_encryption" {
   bucket = aws_s3_bucket.ec2_s3_bucket.id
 
@@ -225,7 +225,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "s3_encryption" {
   }
 }
 
-# ✅ Block Public Access (Ensures bucket privacy)
+# Block Public Access (Ensures bucket privacy)
 resource "aws_s3_bucket_public_access_block" "s3_public_access" {
   bucket = aws_s3_bucket.ec2_s3_bucket.id
 
@@ -235,7 +235,7 @@ resource "aws_s3_bucket_public_access_block" "s3_public_access" {
   restrict_public_buckets = true
 }
 
-# ✅ Lifecycle Policy
+# Lifecycle Policy
 resource "aws_s3_bucket_lifecycle_configuration" "s3_lifecycle" {
   bucket = aws_s3_bucket.ec2_s3_bucket.id
 
