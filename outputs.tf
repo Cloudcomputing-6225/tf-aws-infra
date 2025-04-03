@@ -1,11 +1,11 @@
-output "instance_id" {
-  description = "ID of the created EC2 instance"
-  value       = aws_instance.webapp.id
+output "asg_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.webapp_asg.name
 }
 
-output "instance_public_ip" {
-  description = "Public IP of the EC2 instance"
-  value       = aws_instance.webapp.public_ip
+output "load_balancer_dns" {
+  description = "DNS name of the Application Load Balancer"
+  value       = aws_lb.app_alb.dns_name
 }
 
 output "rds_endpoint" {
