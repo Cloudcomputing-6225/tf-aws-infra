@@ -72,3 +72,18 @@ variable "vpc_cidr_blocks" {
   type    = list(string)
   default = ["10.0.0.0/16"]
 }
+
+variable "domain_name" {
+  description = "The base domain name (e.g., snehaalluri.me)"
+  type        = string
+}
+
+variable "subdomain_name" {
+  description = "The base domain name (e.g., snehaalluri.me)"
+  type        = string
+}
+
+variable "route53_zone_id" {
+  description = "The Route 53 Hosted Zone ID for the domain"
+  type        = string
+}
