@@ -1,6 +1,9 @@
 # Fetch available AWS zones
 data "aws_availability_zones" "available" {}
 
+data "aws_caller_identity" "current" {}
+
+
 # Create VPC
 resource "aws_vpc" "vpc" {
   cidr_block           = var.vpc_cidr_block
@@ -164,17 +167,20 @@ resource "aws_lb_target_group" "app_tg" {
   }
 }
 
-# ALB Listener
-resource "aws_lb_listener" "http_listener" {
+
+resource "aws_lb_listener" "https_listener" {
   load_balancer_arn = aws_lb.app_alb.arn
-  port              = 80
-  protocol          = "HTTP"
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = var.ssl_cert_arn
 
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app_tg.arn
   }
 }
+
 
 
 # Security Group for RDS (only allows traffic from WebApp SG)
@@ -192,6 +198,369 @@ resource "aws_security_group" "rds_sg" {
   tags = {
     Name = "RDS Security Group"
   }
+}
+
+resource "aws_kms_key" "ec2_key" {
+  description             = "KMS key for EC2 encryption"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid : "Enable IAM User Permissions",
+        Effect : "Allow",
+        Principal : {
+          AWS : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        Action : "kms:*",
+        Resource : "*"
+      },
+      {
+        Sid : "Allow access for Key Administrators",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:Create*",
+          "kms:Describe*",
+          "kms:Enable*",
+          "kms:List*",
+          "kms:Put*",
+          "kms:Update*",
+          "kms:Revoke*",
+          "kms:Disable*",
+          "kms:Get*",
+          "kms:Delete*",
+          "kms:TagResource",
+          "kms:UntagResource",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion"
+        ],
+        Resource : "*"
+      },
+      {
+        Sid : "Allow use of the key",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ],
+        Resource : "*"
+      },
+      {
+        Sid : "Allow attachment of persistent resources",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:CreateGrant",
+          "kms:ListGrants",
+          "kms:RevokeGrant"
+        ],
+        Resource : "*",
+        Condition : {
+          Bool : {
+            "kms:GrantIsForAWSResource" : "true"
+          }
+        }
+      }
+    ]
+  })
+
+}
+
+resource "aws_kms_alias" "ec2_alias" {
+  name          = "alias/custom/ec2"
+  target_key_id = aws_kms_key.ec2_key.key_id
+}
+
+resource "aws_kms_key" "rds_key" {
+  description             = "KMS key for RDS encryption"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid : "Enable IAM User Permissions",
+        Effect : "Allow",
+        Principal : {
+          AWS : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        Action : "kms:*",
+        Resource : "*"
+      },
+      {
+        Sid : "Allow access for Key Administrators",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:Create*",
+          "kms:Describe*",
+          "kms:Enable*",
+          "kms:List*",
+          "kms:Put*",
+          "kms:Update*",
+          "kms:Revoke*",
+          "kms:Disable*",
+          "kms:Get*",
+          "kms:Delete*",
+          "kms:TagResource",
+          "kms:UntagResource",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion"
+        ],
+        Resource : "*"
+      },
+      {
+        Sid : "Allow use of the key",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ],
+        Resource : "*"
+      },
+      {
+        Sid : "Allow attachment of persistent resources",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:CreateGrant",
+          "kms:ListGrants",
+          "kms:RevokeGrant"
+        ],
+        Resource : "*",
+        Condition : {
+          Bool : {
+            "kms:GrantIsForAWSResource" : "true"
+          }
+        }
+      }
+    ]
+  })
+
+}
+
+resource "aws_kms_alias" "rds_alias" {
+  name          = "alias/custom/rds"
+  target_key_id = aws_kms_key.rds_key.key_id
+}
+
+resource "aws_kms_key" "s3_key" {
+  description             = "KMS key for S3 encryption"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid : "Enable IAM User Permissions",
+        Effect : "Allow",
+        Principal : {
+          AWS : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        Action : "kms:*",
+        Resource : "*"
+      },
+      {
+        Sid : "Allow access for Key Administrators",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:Create*",
+          "kms:Describe*",
+          "kms:Enable*",
+          "kms:List*",
+          "kms:Put*",
+          "kms:Update*",
+          "kms:Revoke*",
+          "kms:Disable*",
+          "kms:Get*",
+          "kms:Delete*",
+          "kms:TagResource",
+          "kms:UntagResource",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion"
+        ],
+        Resource : "*"
+      },
+      {
+        Sid : "Allow use of the key",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ],
+        Resource : "*"
+      },
+      {
+        Sid : "Allow attachment of persistent resources",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:CreateGrant",
+          "kms:ListGrants",
+          "kms:RevokeGrant"
+        ],
+        Resource : "*",
+        Condition : {
+          Bool : {
+            "kms:GrantIsForAWSResource" : "true"
+          }
+        }
+      }
+    ]
+  })
+
+}
+
+resource "aws_kms_alias" "s3_alias" {
+  name          = "alias/custom/s3"
+  target_key_id = aws_kms_key.s3_key.key_id
+}
+
+resource "aws_kms_key" "secrets_key" {
+  description             = "KMS key for Secrets Manager"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid : "Enable IAM User Permissions",
+        Effect : "Allow",
+        Principal : {
+          AWS : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        Action : "kms:*",
+        Resource : "*"
+      },
+      {
+        Sid : "Allow access for Key Administrators",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:Create*",
+          "kms:Describe*",
+          "kms:Enable*",
+          "kms:List*",
+          "kms:Put*",
+          "kms:Update*",
+          "kms:Revoke*",
+          "kms:Disable*",
+          "kms:Get*",
+          "kms:Delete*",
+          "kms:TagResource",
+          "kms:UntagResource",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion"
+        ],
+        Resource : "*"
+      },
+      {
+        Sid : "Allow use of the key",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ],
+        Resource : "*"
+      },
+      {
+        Sid : "Allow attachment of persistent resources",
+        Effect : "Allow",
+        Principal : {
+          AWS : "*"
+        },
+        Action : [
+          "kms:CreateGrant",
+          "kms:ListGrants",
+          "kms:RevokeGrant"
+        ],
+        Resource : "*",
+        Condition : {
+          Bool : {
+            "kms:GrantIsForAWSResource" : "true"
+          }
+        }
+      }
+    ]
+  })
+
+}
+
+resource "aws_kms_alias" "secrets_alias" {
+  name          = "alias/custom/secrets"
+  target_key_id = aws_kms_key.secrets_key.key_id
+}
+
+# Create Secrets Manager secret and store DB credentials
+resource "random_password" "rds_password" {
+  length           = 16
+  upper            = true
+  lower            = true
+  numeric          = true
+  special          = true
+  override_special = "!#$%^&*()-_=+[]{}:;<>?.," # ✅ safe specials
+}
+
+resource "aws_secretsmanager_secret" "rds_secret" {
+  name_prefix = "rds-db-secret-"
+  description = "RDS DB credentials"
+  kms_key_id  = aws_kms_key.secrets_key.arn
+}
+
+resource "aws_secretsmanager_secret_version" "rds_secret_version" {
+  secret_id = aws_secretsmanager_secret.rds_secret.id
+  secret_string = jsonencode({
+    username = var.DB_USER,
+    password = random_password.rds_password.result,
+    db_name  = var.DB_NAME,
+    host     = aws_db_instance.rds_instance.address,
+    port     = 3306
+  })
 }
 
 
@@ -243,7 +612,28 @@ resource "aws_iam_policy" "ec2_combined_policy" {
           "cloudwatch:PutMetricData"
         ],
         Resource = "*"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : "secretsmanager:GetSecretValue",
+        "Resource" : "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "kms:Decrypt",
+          "kms:Encrypt",
+          "kms:GenerateDataKey",
+          "kms:DescribeKey"
+        ],
+        Resource = [
+          aws_kms_key.ec2_key.arn,
+          aws_kms_key.rds_key.arn,
+          aws_kms_key.s3_key.arn,
+          aws_kms_key.secrets_key.arn
+        ]
       }
+
     ]
   })
 }
@@ -257,7 +647,6 @@ resource "aws_iam_instance_profile" "ec2_combined_instance_profile" {
   name = "ec2-combined-instance-profile"
   role = aws_iam_role.ec2_combined_role.name
 }
-
 
 # S3 Bucket with UUID
 resource "random_uuid" "test" {}
@@ -285,10 +674,12 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "s3_encryption" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.s3_key.arn
     }
   }
 }
+
 
 # Block Public Access (Ensures bucket privacy)
 resource "aws_s3_bucket_public_access_block" "s3_public_access" {
@@ -356,13 +747,15 @@ resource "aws_db_instance" "rds_instance" {
   engine_version         = "8.0.32"
   instance_class         = "db.t3.micro"
   username               = var.DB_USER
-  password               = var.DB_PASS
+  password               = random_password.rds_password.result
   vpc_security_group_ids = [aws_security_group.rds_sg.id]
   db_subnet_group_name   = aws_db_subnet_group.rds_subnet_group.name
   publicly_accessible    = false
   db_name                = var.DB_NAME
   skip_final_snapshot    = true
   parameter_group_name   = aws_db_parameter_group.rds_param_group.name # ✅ Attach custom parameter group
+  storage_encrypted      = true
+  kms_key_id             = aws_kms_key.rds_key.arn
 
   tags = {
     Name = "CSYE6225 RDS Instance"
@@ -371,7 +764,7 @@ resource "aws_db_instance" "rds_instance" {
 
 # Launch Template
 resource "aws_launch_template" "webapp_lt" {
-  name_prefix   = "csye6225-webapp-"
+  name          = "csye6225-webapp"
   image_id      = var.ami_id
   instance_type = var.instance_type
   key_name      = var.key_name
@@ -385,77 +778,128 @@ resource "aws_launch_template" "webapp_lt" {
     associate_public_ip_address = true
   }
 
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_size           = 20
+      volume_type           = "gp2"
+      encrypted             = true
+      kms_key_id            = aws_kms_key.ec2_key.arn
+      delete_on_termination = true
+    }
+  }
+
 
   user_data = base64encode(<<-EOF
-#!/bin/bash
-echo "Starting WebApp Setup"
-exec > /var/log/user-data.log 2>&1
-set -x
+  #!/bin/bash
+  echo "Starting WebApp Setup"
+  exec > /var/log/user-data.log 2>&1
+  set -x
 
-cd /home/csye6225/webapp
+  cd /home/csye6225/webapp
 
-# Write environment variables
-echo "DB_HOST=${aws_db_instance.rds_instance.address}" | sudo tee /home/csye6225/webapp/.env
-echo "DB_USER=${var.DB_USER}" | sudo tee -a /home/csye6225/webapp/.env
-echo "DB_PASS=${var.DB_PASS}" | sudo tee -a /home/csye6225/webapp/.env
-echo "DB_NAME=${var.DB_NAME}" | sudo tee -a /home/csye6225/webapp/.env
-echo "AWS_REGION=${var.AWS_REGION}" | sudo tee -a /home/csye6225/webapp/.env
-echo "S3_BUCKET_NAME=${aws_s3_bucket.ec2_s3_bucket.id}" | sudo tee -a /home/csye6225/webapp/.env
+  # Install AWS CLI if not already installed
+  apt-get update
+  apt-get install -y awscli jq
 
-sudo chmod 600 /home/csye6225/webapp/.env
-sudo chown csye6225:csye6225 /home/csye6225/webapp/.env
+  for i in {1..10}; do
+    SECRET=$(aws secretsmanager get-secret-value \
+      --secret-id=${aws_secretsmanager_secret.rds_secret.id}\
+      --region us-east-1 \
+      --query SecretString \
+      --output text)
 
-# Restart application service
-echo "Restarting Web Application Service"
-sudo systemctl restart myapp || echo "Service restart failed"
-sudo systemctl status myapp --no-pager || echo "Service is not running"
+    if [ -n "$SECRET" ]; then
+      echo "Fetched secret!" >> /var/log/user-data.log
+      break
+    fi
 
-# CloudWatch Agent Configuration
-echo "Creating CloudWatch Agent configuration..."
-sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+    echo "Waiting for secret..." >> /var/log/user-data.log
+    sleep 10
+  done
 
-sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOCONFIG
-{
-  "agent": {
-    "metrics_collection_interval": 60,
-    "logfile": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log",
-    "run_as_user": "root"
-  },
-  "logs": {
-    "logs_collected": {
-      "files": {
-        "collect_list": [
-          {
-            "file_path": "/home/csye6225/webapp/app.log",
-            "log_group_name": "/csye6225/webapp/logs",
-            "log_stream_name": "{instance_id}-app-log",
-            "timestamp_format": "%Y-%m-%d %H:%M:%S"
-          }
-        ]
+  DB_USER=$(echo $SECRET | jq -r '.username')
+  DB_PASS=$(echo $SECRET | jq -r '.password')
+  DB_NAME=$(echo $SECRET | jq -r '.db_name')
+  DB_HOST=$(echo $SECRET | jq -r '.host')
+
+  echo "DB_HOST=$DB_HOST" | sudo tee /home/csye6225/webapp/.env
+  echo "DB_USER=$DB_USER" | sudo tee -a /home/csye6225/webapp/.env
+  echo "DB_PASS=$DB_PASS" | sudo tee -a /home/csye6225/webapp/.env
+  echo "DB_NAME=$DB_NAME" | sudo tee -a /home/csye6225/webapp/.env
+  echo "AWS_REGION=us-east-1" | sudo tee -a /home/csye6225/webapp/.env
+  echo "S3_BUCKET_NAME=${aws_s3_bucket.ec2_s3_bucket.id}" | sudo tee -a /home/csye6225/webapp/.env
+  echo "PORT=3000" | sudo tee -a /home/csye6225/webapp/.env
+
+
+
+  sudo chown csye6225:csye6225 /home/csye6225/webapp/.env
+  sudo chmod 600 /home/csye6225/webapp/.env
+
+
+  sudo chmod 600 /home/csye6225/webapp/.env
+  sudo chown csye6225:csye6225 /home/csye6225/webapp/.env
+
+  # Restart application service
+  echo "Restarting Web Application Service"
+  sudo systemctl restart myapp || echo "Service restart failed"
+  sudo systemctl status myapp --no-pager || echo "Service is not running"
+
+  # CloudWatch Agent Configuration
+  echo "Creating CloudWatch Agent configuration..."
+  sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+
+  sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<EOCONFIG
+  {
+    "agent": {
+      "metrics_collection_interval": 60,
+      "logfile": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log",
+      "run_as_user": "root"
+    },
+    "logs": {
+      "logs_collected": {
+        "files": {
+          "collect_list": [
+            {
+              "file_path": "/home/csye6225/webapp/app.log",
+              "log_group_name": "/csye6225/webapp/logs",
+              "log_stream_name": "{instance_id}-app-log",
+              "timestamp_format": "%Y-%m-%d %H:%M:%S"
+            }
+          ]
+        }
       }
-    }
-  },
-  "metrics": {
-    "namespace": "CSYE6225/WebApp",
-    "metrics_collected": {
-      "statsd": {
-        "service_address": ":8125",
-        "metrics_collection_interval": 10
+    },
+    "metrics": {
+      "namespace": "CSYE6225/WebApp",
+      "metrics_collected": {
+        "statsd": {
+          "service_address": ":8125",
+          "metrics_collection_interval": 10
+        }
       }
     }
   }
-}
-EOCONFIG
+  EOCONFIG
 
-# Start CloudWatch Agent
-echo "Starting CloudWatch Agent..."
-sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-  -a fetch-config \
-  -m ec2 \
-  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
-  -s
+  # Start CloudWatch Agent
+  echo "Starting CloudWatch Agent..."
+  sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    -a fetch-config \
+    -m ec2 \
+    -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+    -s
 
-EOF
+  sudo chmod 644 /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+  sudo chmod 644 /home/csye6225/webapp/app.log  
+
+  sudo systemctl daemon-reload
+  sudo systemctl restart myapp
+  sudo systemctl restart amazon-cloudwatch-agent
+
+  EOF
   )
   tag_specifications {
     resource_type = "instance"
@@ -549,5 +993,3 @@ resource "aws_route53_record" "webapp_dns" {
     evaluate_target_health = true
   }
 }
-
-

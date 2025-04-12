@@ -42,3 +42,7 @@ output "security_group_rds" {
   description = "Security Group ID for RDS"
   value       = aws_security_group.rds_sg.id
 }
+output "secretsmanager_secret_name" {
+  description = "Secrets Manager secret name for DB credentials"
+  value       = aws_secretsmanager_secret.rds_secret.name
+}
